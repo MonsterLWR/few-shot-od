@@ -186,8 +186,8 @@ def fill_truth_detection_meta(labpath, w, h, flip, dx, dy, sx, sy):
 
             # Copy bbox info for building target
             ind = cfg.base_ids.index(clsid)
-            if ind >= n_cls or ccs[ind] >= cfg.max_boxes:
-                pdb.set_trace()
+            # if ind >= n_cls or ccs[ind] >= cfg.max_boxes:
+            #     pdb.set_trace()
             label[ind][ccs[ind]] = bs[i]
             label[ind][ccs[ind]][0] = ind
             ccs[ind] += 1

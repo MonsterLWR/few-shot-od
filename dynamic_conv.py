@@ -47,8 +47,7 @@ class _ConvNd(nn.Module):
         # else:
         self.register_parameter('bias', None)
         self.reset_parameters()
-        
-    
+
     def reset_parameters(self):
         if self.partial is not None:
             n = self.partial
@@ -108,9 +107,9 @@ class _ConvNd(nn.Module):
 #         return conv_rlt
 
 def dynamic_conv2d(is_first, partial=None):
-
     class DynamicConv2d(_ConvNd):
         is_first = None
+
         def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                      padding=0, dilation=1, groups=1, bias=False):
             # assert(in_channels == out_channels)nami
@@ -119,8 +118,8 @@ def dynamic_conv2d(is_first, partial=None):
             padding = _pair(padding)
             dilation = _pair(dilation)
             super(DynamicConv2d, self).__init__(
-                    in_channels, out_channels, kernel_size, stride, padding, dilation,
-                    False, _pair(0), groups, bias)
+                in_channels, out_channels, kernel_size, stride, padding, dilation,
+                False, _pair(0), groups, bias)
 
         def forward(self, inputs):
             assert self.is_first is not None, 'Please set the state of DynamicConv2d first.'
@@ -146,7 +145,7 @@ def dynamic_conv2d(is_first, partial=None):
                 batch_size = input.size(0) // n_cls
                 n_channels = input.size(1)
                 in_size = (input.size(-2), input.size(-1))
-                input = input.view(batch_size, n_cls*n_channels, *in_size)
+                input = input.view(batch_size, n_cls * n_channels, *in_size)
 
             # Get group size
             group_size = dynamic_weight.size(1) // n_channels
@@ -156,7 +155,7 @@ def dynamic_conv2d(is_first, partial=None):
             dynamic_weight = dynamic_weight.view(-1, group_size, dynamic_weight.size(2), dynamic_weight.size(3))
 
             conv_rlt = F.conv2d(input, dynamic_weight, self.bias, self.stride,
-                            self.padding, self.dilation, groups)
+                                self.padding, self.dilation, groups)
 
             feat_size = (conv_rlt.size(-2), conv_rlt.size(-1))
             conv_rlt = conv_rlt.view(-1, n_channels, *feat_size)

@@ -188,11 +188,11 @@ class Darknet(nn.Module):
                 outputs[ind] = x
             elif block['type'] == 'region':
                 continue
-                if self.loss:
-                    self.loss = self.loss + self.models[ind](x)
-                else:
-                    self.loss = self.models[ind](x)
-                outputs[ind] = None
+                # if self.loss:
+                #     self.loss = self.loss + self.models[ind](x)
+                # else:
+                #     self.loss = self.models[ind](x)
+                # outputs[ind] = None
             elif block['type'] == 'cost':
                 continue
             else:
@@ -256,7 +256,8 @@ class Darknet(nn.Module):
                         'conv{0}'.format(conv_id),
                         Conv2d(prev_filters, filters, kernel_size, stride, pad, groups=groups, bias=bias))
                 if activation == 'leaky':
-                    model.add_module('leaky{0}'.format(conv_id), nn.LeakyReLU(0.1, inplace=True))#negtive_slop = 0.1, would 0.0.1(default value) be better?
+                    # negtive_slop = 0.1, would 0.01(default value) be better?
+                    model.add_module('leaky{0}'.format(conv_id), nn.LeakyReLU(0.1, inplace=True))
                 elif activation == 'relu':
                     model.add_module('relu{0}'.format(conv_id), nn.ReLU(inplace=True))
                 prev_filters = filters

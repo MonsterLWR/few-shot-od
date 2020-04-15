@@ -13,6 +13,7 @@ import pdb
 
 
 def neg_filter(pred_boxes, target, withids=False):
+    """filter whole batches out?"""
     assert pred_boxes.size(0) == target.size(0)
     if cfg.neg_ratio == 'full':
         inds = list(range(pred_boxes.size(0)))
@@ -54,6 +55,7 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, nH, nW,
     nAnchors = nA * nH * nW
     nPixels = nH * nW
     for b in range(nB):
+        # corresponding boxes for the g_t class
         cur_pred_boxes = pred_boxes[b * nAnchors:(b + 1) * nAnchors].t()
         cur_ious = torch.zeros(nAnchors)
         for t in range(cfg.max_boxes):
@@ -64,8 +66,9 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, nH, nW,
             gw = target[b][t * 5 + 3] * nW
             gh = target[b][t * 5 + 4] * nH
             cur_gt_boxes = torch.FloatTensor([gx, gy, gw, gh]).repeat(nAnchors, 1).t()
+            # if more than one g_t exists, pick the largest iou
             cur_ious = torch.max(cur_ious, bbox_ious(cur_pred_boxes, cur_gt_boxes, x1y1x2y2=False))
-        # Find anchors with iou > sil_thresh
+            # Find anchors with iou > sil_thresh
         # no loss for that one
         conf_mask[b][cur_ious.view(conf_mask[b].shape) > sil_thresh] = 0
     if seen < 12800:
@@ -87,7 +90,8 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, nH, nW,
     nCorrect = 0
     for b in range(nB):
         # pdb.set_trace()
-        for t in range(50):
+        # for t in range(50):  # not cfg.max_boxes?
+        for t in range(cfg.max_boxes):
             if target[b][t * 5 + 1] == 0:
                 break
             nGT = nGT + 1
@@ -101,7 +105,7 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, nH, nW,
             gw = target[b][t * 5 + 3] * nW
             gh = target[b][t * 5 + 4] * nH
             gt_box = [0, 0, gw, gh]
-            for n in range(nA):
+            for n in range(nA):  # find the best anchor
                 aw = anchors[anchor_step * n]
                 ah = anchors[anchor_step * n + 1]
                 anchor_box = [0, 0, aw, ah]
@@ -267,9 +271,9 @@ class RegionLossV2(nn.Module):
         print('class_scale', self.class_scale)
 
     def forward(self, output, target):
-        # output : BxAs*(4+1+num_classes)*H*W
+        # output: batch_size*num_basec_classes, num_anchor*size_out_vector, h, w
         # Get all classification prediction
-        # pdb.set_trace()
+        # target: batch_size, num_basec_classes, num_max_boxes*(id+four_position)
         bs = target.size(0)
         cs = target.size(1)
         nA = self.num_anchors
@@ -284,18 +288,18 @@ class RegionLossV2(nn.Module):
         target = target.view(-1, target.size(-1))
         # bef = target.size(0)
         output, target, inds = neg_filter(output, target, withids=True)
-        counts, _ = np.histogram(inds, bins=bs, range=(0, bs * cs))
+        counts, _ = np.histogram(inds, bins=bs, range=(0, bs * cs))  # counts of boxes in each sample
         # print("{}/{}".format(target.size(0), bef))
 
         t0 = time.time()
         nB = output.data.size(0)
 
         output = output.view(nB, nA, (5 + nC), nH, nW)
-        x = F.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([0]))).view(nB, nA, nH, nW))
-        y = F.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([1]))).view(nB, nA, nH, nW))
+        x = torch.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([0]))).view(nB, nA, nH, nW))
+        y = torch.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([1]))).view(nB, nA, nH, nW))
         w = output.index_select(2, Variable(torch.cuda.LongTensor([2]))).view(nB, nA, nH, nW)
         h = output.index_select(2, Variable(torch.cuda.LongTensor([3]))).view(nB, nA, nH, nW)
-        conf = F.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([4]))).view(nB, nA, nH, nW))
+        conf = torch.sigmoid(output.index_select(2, Variable(torch.cuda.LongTensor([4]))).view(nB, nA, nH, nW))
         # [nB, nA, nC, nW, nH] | (bs, 5, 1, 13, 13)
         # cls  = output.index_select(2, Variable(torch.linspace(5,5+nC-1,nC).long().cuda()))
         # cls  = cls.view(nB*nA, nC, nH*nW).transpose(1,2).contiguous().view(nB*nA*nH*nW, nC)
@@ -318,8 +322,7 @@ class RegionLossV2(nn.Module):
         nGT, nCorrect, coord_mask, conf_mask, cls_mask, tx, ty, tw, th, tconf, tcls = build_targets(pred_boxes,
                                                                                                     target.data,
                                                                                                     self.anchors, nA,
-                                                                                                    nC, \
-                                                                                                    nH, nW,
+                                                                                                    nC, nH, nW,
                                                                                                     self.noobject_scale,
                                                                                                     self.object_scale,
                                                                                                     self.thresh,
@@ -342,7 +345,7 @@ class RegionLossV2(nn.Module):
         cls_mask = torch.stack(cls_mask_list)
         tcls = torch.stack(tcls_list)
 
-        cls_mask = (cls_mask == 1)
+        cls_mask = (cls_mask == 1)  # how about larger than one
         # nProposals = int((conf > 0.25).float().sum().data[0])
         nProposals = int((conf > 0.25).float().sum().item())
 
@@ -362,7 +365,7 @@ class RegionLossV2(nn.Module):
         ClassificationLoss = nn.CrossEntropyLoss(size_average=False)
 
         t3 = time.time()
-
+        # try about BCEloss?
         loss_x = self.coord_scale * nn.MSELoss(size_average=False)(x * coord_mask, tx * coord_mask) / 2.0
         loss_y = self.coord_scale * nn.MSELoss(size_average=False)(y * coord_mask, ty * coord_mask) / 2.0
         loss_w = self.coord_scale * nn.MSELoss(size_average=False)(w * coord_mask, tw * coord_mask) / 2.0

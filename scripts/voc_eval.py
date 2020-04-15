@@ -5,13 +5,14 @@
 # --------------------------------------------------------
 
 import xml.etree.ElementTree as ET
-import os,sys
-import cPickle
+import os, sys
+import _pickle as cPickle
 import numpy as np
 import argparse
 from os import path
 from termcolor import colored
 import pdb
+
 
 def get_id(s):
     ss = s.split('_')
@@ -19,6 +20,7 @@ def get_id(s):
         if 'novel' in s:
             return s.replace('novel', '')
     return None
+
 
 def get_novels(root, id=None):
     if root.endswith('txt'):
@@ -60,6 +62,7 @@ def parse_rec(filename):
 
     return objects
 
+
 def voc_ap(rec, prec, use_07_metric=False):
     """ ap = voc_ap(rec, prec, [use_07_metric])
     Compute VOC AP given precision and recall.
@@ -92,6 +95,7 @@ def voc_ap(rec, prec, use_07_metric=False):
         # and sum (\Delta recall) * prec
         ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return ap
+
 
 def voc_eval(detpath,
              annopath,
@@ -140,10 +144,10 @@ def voc_eval(detpath,
         for i, imagename in enumerate(imagenames):
             recs[imagename] = parse_rec(annopath.format(imagename))
             if i % 100 == 0:
-                print 'Reading annotation for {:d}/{:d}'.format(
-                    i + 1, len(imagenames))
+                print('Reading annotation for {:d}/{:d}'.format(
+                    i + 1, len(imagenames)))
         # save
-        print 'Saving cached annotations to {:s}'.format(cachefile)
+        print('Saving cached annotations to {:s}'.format(cachefile))
         with open(cachefile, 'w') as f:
             cPickle.dump(recs, f)
     else:
@@ -240,19 +244,18 @@ def voc_eval(detpath,
     ap = voc_ap(rec, prec, use_07_metric)
 
     return rec, prec, ap
-    
 
 
-def _do_python_eval(res_prefix, novel=False, output_dir = 'output'):
+def _do_python_eval(res_prefix, novel=False, output_dir='output'):
     # _devkit_path = '/data2/bykang/pytorch-yolo2/VOCdevkit'
     _devkit_path = '/tmp_scratch/basilisk/bykang/datasets/VOCdevkit'
     _year = '2007'
-    _classes = ('__background__', # always index 0
-        'aeroplane', 'bicycle', 'bird', 'boat',
-        'bottle', 'bus', 'car', 'cat', 'chair',
-        'cow', 'diningtable', 'dog', 'horse',
-        'motorbike', 'person', 'pottedplant',
-        'sheep', 'sofa', 'train', 'tvmonitor') 
+    _classes = ('__background__',  # always index 0
+                'aeroplane', 'bicycle', 'bird', 'boat',
+                'bottle', 'bus', 'car', 'cat', 'chair',
+                'cow', 'diningtable', 'dog', 'horse',
+                'motorbike', 'person', 'pottedplant',
+                'sheep', 'sofa', 'train', 'tvmonitor')
     _novel_file = 'data/voc_novels.txt'
     novelid = get_id(res_prefix.split('/')[-3])
     print(novelid)
@@ -260,7 +263,7 @@ def _do_python_eval(res_prefix, novel=False, output_dir = 'output'):
 
     # _novel_classes = ('bird', 'bus', 'cow', 'motorbike', 'sofa')
 
-    #filename = '/data/hongji/darknet/results/comp4_det_test_{:s}.txt' 
+    # filename = '/data/hongji/darknet/results/comp4_det_test_{:s}.txt'
     filename = res_prefix + '{:s}.txt'
     annopath = os.path.join(
         _devkit_path,
@@ -279,13 +282,13 @@ def _do_python_eval(res_prefix, novel=False, output_dir = 'output'):
     base_aps = []
     # The PASCAL VOC metric changed in 2010
     use_07_metric = True if int(_year) < 2010 else False
-    print 'VOC07 metric? ' + ('Yes' if use_07_metric else 'No')
+    print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     for i, cls in enumerate(_classes):
         if cls == '__background__':
             continue
-        
+
         rec, prec, ap = voc_eval(
             filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
             use_07_metric=use_07_metric)
@@ -318,9 +321,9 @@ def _do_python_eval(res_prefix, novel=False, output_dir = 'output'):
     print('{:.3f}'.format(np.mean(aps)))
     print('~~~~~~~~')
     print('')
-    s = ('{:.2f}\t'*20).format(*(np.array(aps) * 100).tolist())
+    s = ('{:.2f}\t' * 20).format(*(np.array(aps) * 100).tolist())
     if novel:
-        s += (('{:.2f}\t'*3)).format(np.mean(aps)*100, np.mean(base_aps)*100, np.mean(novel_aps)*100)
+        s += (('{:.2f}\t' * 3)).format(np.mean(aps) * 100, np.mean(base_aps) * 100, np.mean(novel_aps) * 100)
     # print(('{:.2f}\t'*20).format(*(np.array(aps) * 100).tolist()))
     print(s)
     print('--------------------------------------------------------------')
@@ -332,14 +335,12 @@ def _do_python_eval(res_prefix, novel=False, output_dir = 'output'):
 
 
 if __name__ == '__main__':
-    #res_prefix = '/data/hongji/darknet/project/voc/results/comp4_det_test_'  
+    # res_prefix = '/data/hongji/darknet/project/voc/results/comp4_det_test_'
     parser = argparse.ArgumentParser()
     parser.add_argument('res_prefix', type=str)
     parser.add_argument('--novel', action='store_true')
-    parser.add_argument('--single', action='store_true')  
+    parser.add_argument('--single', action='store_true')
     args = parser.parse_args()
     args.novel = True
     print(args.res_prefix)
-    _do_python_eval(args.res_prefix, novel=args.novel, output_dir = 'output')
-
-
+    _do_python_eval(args.res_prefix, novel=args.novel, output_dir='output')

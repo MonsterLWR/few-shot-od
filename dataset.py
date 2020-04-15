@@ -1,18 +1,13 @@
 #!/usr/bin/python
 # encoding: utf-8
 
-import os
-import random
 import torch
-import numpy as np
 from torch.utils.data import Dataset
-from torchvision import transforms
-from PIL import Image
-from utils import read_truths_args, read_truths, is_dict
+from utils import is_dict
 from image import *
 from cfg import cfg
-from collections import defaultdict
 import pdb
+from torchvision import transforms
 
 
 def topath(p):
@@ -223,29 +218,29 @@ class listDataset(Dataset):
         assert index <= len(self), 'index range error'
         imgpath = self.lines[index].rstrip()
 
-        bs = 64
-        batchs = 4000
-        if self.train and index % bs == 0 and cfg.data != 'coco' and cfg.multiscale:
-            if self.first_batch:
-                width = 19 * 32
-                self.shape = (width, width)
-                self.first_batch = False
-            elif self.seen < batchs * bs:
-                width = 13 * 32
-                self.shape = (width, width)
-            elif self.seen < 2 * batchs * bs:
-                width = (random.randint(0, 3) + 13) * 32
-                self.shape = (width, width)
-            elif self.seen < 3 * batchs * bs:
-                width = (random.randint(0, 5) + 12) * 32
-                self.shape = (width, width)
-            elif self.seen < 4 * batchs * bs:
-                width = (random.randint(0, 7) + 11) * 32
-                self.shape = (width, width)
-            else:  # self.seen < 20000*64:
-                # width = (random.randint(1,7) + 10)*32
-                width = (random.randint(0, 9) + 10) * 32
-                self.shape = (width, width)
+        # bs = 64
+        # batchs = 4000
+        # if self.train and index % bs == 0 and cfg.data != 'coco' and cfg.multiscale:
+        #     if self.first_batch:
+        #         width = 19 * 32
+        #         self.shape = (width, width)
+        #         self.first_batch = False
+        #     elif self.seen < batchs * bs:
+        #         width = 13 * 32
+        #         self.shape = (width, width)
+        #     elif self.seen < 2 * batchs * bs:
+        #         width = (random.randint(0, 3) + 13) * 32
+        #         self.shape = (width, width)
+        #     elif self.seen < 3 * batchs * bs:
+        #         width = (random.randint(0, 5) + 12) * 32
+        #         self.shape = (width, width)
+        #     elif self.seen < 4 * batchs * bs:
+        #         width = (random.randint(0, 7) + 11) * 32
+        #         self.shape = (width, width)
+        #     else:  # self.seen < 20000*64:
+        #         # width = (random.randint(1,7) + 10)*32
+        #         width = (random.randint(0, 9) + 10) * 32
+        #         self.shape = (width, width)
 
         jitter = 0.2
         hue = 0.1
@@ -264,7 +259,7 @@ class listDataset(Dataset):
             label = self.target_transform(label)
 
         self.seen = self.seen + self.num_workers
-        return (img, label)
+        return img, label
 
     @staticmethod
     def get_labpath(imgpath):
@@ -343,7 +338,7 @@ class MetaDataset(Dataset):
 
         # list(zip(*metainds) works like transpose the data in metainds
         # concatenate every item in list(zip(*metainds)
-        self.inds = sum(metainds, []) if ensemble else sum(list(zip(*metainds)), ())  # shape is 240000
+        self.inds = sum(metainds, []) if ensemble else sum(list(zip(*metainds)), ())
         self.meta_cnts = [len(ls) for ls in self.metalines]
         if cfg.randmeta:
             self.inds = list(self.inds)
@@ -408,7 +403,7 @@ class MetaDataset(Dataset):
         else:
             return img, mask
 
-    def get_metaimg(self, clsid, imgpath):
+    def get_meta_img(self, clsid, imgpath):
         jitter = 0.2
         hue = 0.1
         saturation = 1.5
@@ -426,29 +421,30 @@ class MetaDataset(Dataset):
             imgpath, labpath, self.meta_shape, jitter, hue, saturation, exposure, data_aug=self.train)
         return img, lab
 
-    def get_metain(self, clsid, metaind):
-        meta_img, meta_lab = self.get_metaimg(clsid, metaind)
+    def get_meta_image_resampling(self, clsid, metaind):
+        """get_meta_image: automatically resample the asked image if label is difficult"""
+        meta_img, meta_lab = self.get_meta_img(clsid, metaind)
         if meta_lab:
             for lab in meta_lab:
-                # print(lab)
+                # if this image has more than one label, pick one of them, because only need one label to build tha mask.
                 img, mask = self.get_img_mask(meta_img, lab, merge=False)
                 if mask is None:
                     continue
-                return (img, mask)
+                return img, mask
 
         # In case the selected meta image has only difficult objects
         while True and not self.ensemble:
             # while True:
             meta_imgpath = random.sample(self.metalines[clsid], 1)[0].rstrip()
-            meta_img, meta_lab = self.get_metaimg(clsid, meta_imgpath)
+            meta_img, meta_lab = self.get_meta_img(clsid, meta_imgpath)
             if not meta_lab:
                 continue
             for lab in meta_lab:
                 img, mask = self.get_img_mask(meta_img, lab, merge=False)
                 if mask is None:
                     continue
-                return (img, mask)
-        return (None, None)
+                return img, mask
+        return None, None
 
     def filter(self, inds):
         newinds = []
@@ -457,7 +453,7 @@ class MetaDataset(Dataset):
         for clsid, metaind in inds:
             print('|{}/{}'.format(_cnt, len(inds)))
             _cnt += 1
-            img, mask = self.get_metain(clsid, metaind)
+            img, mask = self.get_meta_image_resampling(clsid, metaind)
             if img is not None:
                 newinds.append((clsid, metaind))
         return newinds
@@ -467,13 +463,13 @@ class MetaDataset(Dataset):
 
         clsid, metaind = self.inds[index]
 
-        img, mask = self.get_metain(clsid, metaind)
+        img, mask = self.get_meta_image_resampling(clsid, metaind)
         # ipath = self.metalines[clsid][metaind]
 
         if self.with_ids:
-            return (img, mask, clsid)
+            return img, mask, clsid
         else:
-            return (img, mask)
+            return img, mask
 
     @staticmethod
     def get_labpath(imgpath, cls_name):

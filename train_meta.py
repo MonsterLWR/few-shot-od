@@ -31,7 +31,7 @@ darknetcfg = parse_cfg(sys.argv[2])
 learnetcfg = parse_cfg(sys.argv[3])
 weightfile = sys.argv[4]
 
-data_options = read_data_cfg(datacfg)
+data_options = read_data_cfg(datacfg, num_workers=0)
 net_options = darknetcfg[0]
 meta_options = learnetcfg[0]
 
@@ -42,7 +42,7 @@ cfg.config_net(net_options)
 
 # Parameters 
 metadict = data_options['meta']
-trainlist = data_options['train'] #constructing dataset: list --> listDataset -->Dataloader
+trainlist = data_options['train']  # constructing dataset: list --> listDataset -->Dataloader
 
 testlist = data_options['valid']
 backupdir = data_options['backup']
@@ -70,8 +70,8 @@ conf_thresh = 0.25
 nms_thresh = 0.4
 iou_thresh = 0.5
 
-## --------------------------------------------------------------------------
-## MAIN
+# --------------------------------------------------------------------------
+# MAIN
 backupdir = cfg.backup
 print('logging to ' + backupdir)
 if not os.path.exists(backupdir):
@@ -92,14 +92,14 @@ model.print_network()
 ### Meta-model parameters
 region_loss.seen = model.seen
 processed_batches = 0 if cfg.tuning else model.seen // batch_size
-trainlist = dataset.build_dataset(data_options)#return lsit of training image paths
+trainlist = dataset.build_dataset(data_options)  # return lsit of training image paths
 nsamples = len(trainlist)
 init_width = model.width
 init_height = model.height
 init_epoch = 0 if cfg.tuning else model.seen // nsamples
 max_epochs = int(max_batches * batch_size / nsamples + 1)
 max_epochs = int(math.ceil(cfg.max_epoch * 1. / cfg.repeat)) if cfg.tuning else max_epochs
-#print(cfg.repeat, nsamples, max_batches, batch_size)
+# print(cfg.repeat, nsamples, max_batches, batch_size)
 print('num_workers:%d' % num_workers)
 
 kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
@@ -186,10 +186,11 @@ def train(epoch):
     metaset = dataset.MetaDataset(metafiles=metadict, train=True)
     metaloader = torch.utils.data.DataLoader(
         metaset,
-        batch_size=metaset.batch_size,
+        # batch_size=metaset.batch_size,
+        batch_size=metaset.batch_size // 2,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=False
     )
     metaloader = iter(metaloader)
 

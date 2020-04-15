@@ -208,7 +208,7 @@ def get_region_boxes_v2(output, n_models, conf_thresh, num_classes, anchors, num
     cs = n_models
     nA = num_anchors
     nC = num_classes
-    anchor_step = len(anchors) / num_anchors
+    anchor_step = len(anchors) // num_anchors
     if output.dim() == 3:
         output = output.unsqueeze(0)
     batch = output.size(0)
@@ -483,7 +483,7 @@ def do_detect(model, img, conf_thresh, nms_thresh, use_cuda=1):
     return boxes
 
 
-def read_data_cfg(datacfg, num_workers=0):
+def read_data_cfg(datacfg, num_workers=4):
     options = dict()
     options['gpus'] = '0,1,2,3'
     options['num_workers'] = '%d' % num_workers
